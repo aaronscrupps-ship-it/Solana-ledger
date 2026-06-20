@@ -109,6 +109,24 @@ class Cache:
         )
         return [row[0] for row in cur]
 
+    def get_uncached_sig_stubs(self, address: str) -> List[Dict]:
+        """Return (signature, block_time) for sigs with no full transaction data.
+
+        Used to generate synthetic vote-fee entries for identity accounts without
+        fetching millions of vote transactions from the API.
+        """
+        cur = self.conn.execute(
+            """SELECT s.signature, s.block_time
+               FROM signatures s
+               LEFT JOIN transactions t ON s.signature = t.signature
+               WHERE s.address = ?
+                 AND s.err = 0
+                 AND t.signature IS NULL
+               ORDER BY s.block_time ASC""",
+            (address,),
+        )
+        return [{"signature": row[0], "block_time": row[1]} for row in cur]
+
     def save_transactions(self, txns: List[Dict]):
         now = int(time.time())
         rows = []

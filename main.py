@@ -24,7 +24,7 @@ from tqdm import tqdm
 from solana_ledger.cache import Cache
 from solana_ledger.config import load_config
 from solana_ledger.fetcher import RateLimiter, fetch_signatures, fetch_transactions
-from solana_ledger.processor import LedgerEntry, process_all
+from solana_ledger.processor import LedgerEntry, process_all, synthetic_vote_entries
 from solana_ledger.reporter import generate_report
 
 
@@ -89,6 +89,18 @@ def cmd_fetch(args, config):
             continue
 
         # ── Phase 2: full transaction data ────────────────────────────────
+        # Identity accounts cast millions of vote txns (fixed 5000 lamport fee each).
+        # With --skip-vote-data we skip downloading those; synthetic entries are
+        # generated at report time instead, saving hours of API calls.
+        if args.skip_vote_data and wallet.type == "identity":
+            print(
+                "  --skip-vote-data: skipping full transaction fetch for identity account.\n"
+                "  Vote fees will be generated as synthetic entries (5000 lamports each)\n"
+                "  when you run 'report'. To later fetch non-vote transactions only,\n"
+                "  use: python main.py fetch --wallet <address>"
+            )
+            continue
+
         uncached = cache.get_uncached_signatures(wallet.address)
         if not uncached:
             print("  All transactions already cached.")
@@ -128,10 +140,22 @@ def cmd_report(args, config):
 
     for wallet in config.wallets:
         txns = cache.get_transactions(wallet.address)
-        print(f"  {wallet.label:<40} {len(txns):>10,} transactions")
+        print(f"  {wallet.label:<40} {len(txns):>10,} full transactions cached")
         entries = process_all(txns, wallet.address, wallet.label, our_addresses, labels)
+
+        # For identity wallets, any signatures without full transaction data are
+        # assumed to be vote transactions (5000 lamports each).  This covers the
+        # --skip-vote-data fast-fetch path without losing accounting accuracy.
+        if wallet.type == "identity":
+            stubs = cache.get_uncached_sig_stubs(wallet.address)
+            if stubs:
+                synth = synthetic_vote_entries(stubs, wallet.address, wallet.label)
+                print(f"    + {len(synth):>10,} synthetic vote entries (5000 lamports each)")
+                entries.extend(synth)
+                entries.sort(key=lambda e: e.date)
+
         entries_by_wallet[wallet.address] = entries
-        print(f"    → {len(entries):>10,} ledger entries")
+        print(f"    → {len(entries):>10,} total ledger entries")
 
     cache.close()
 
@@ -212,6 +236,12 @@ def main():
     fp.add_argument(
         "--sigs-only", action="store_true",
         help="Only fetch signature list (fast); skip downloading full transaction data",
+    )
+    fp.add_argument(
+        "--skip-vote-data", action="store_true",
+        help="For identity wallets: skip full transaction fetch. Vote fees are "
+             "calculated as 5000 lamports × signature count at report time. "
+             "Saves hours of API calls on validators with millions of votes.",
     )
 
     rp = sub.add_parser("report", help="Generate Excel ledger from cached data")

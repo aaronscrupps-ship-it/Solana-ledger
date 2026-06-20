@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Set
 
 VOTE_PROGRAM = "Vote111111111111111111111111111111111111111k"
 LAMPORTS_PER_SOL = 1_000_000_000
+VOTE_FEE_LAMPORTS = 5_000  # fixed Solana vote transaction fee
 
 
 @dataclass
@@ -147,3 +148,38 @@ def process_all(
         if entry:
             entries.append(entry)
     return sorted(entries, key=lambda e: e.date)
+
+
+def synthetic_vote_entries(
+    sig_stubs: List[Dict],
+    wallet_address: str,
+    wallet_label: str,
+) -> List[LedgerEntry]:
+    """
+    Build LedgerEntry objects for vote transactions without fetching full data.
+
+    Solana vote fees are a fixed 5,000 lamports each.  For identity accounts
+    with millions of votes this avoids tens of thousands of API calls while
+    still giving accurate accounting figures.
+    """
+    fee_sol = VOTE_FEE_LAMPORTS / LAMPORTS_PER_SOL
+    entries = []
+    for stub in sig_stubs:
+        ts = stub.get("block_time")
+        if not ts:
+            continue
+        entries.append(LedgerEntry(
+            wallet_address=wallet_address,
+            wallet_label=wallet_label,
+            date=datetime.fromtimestamp(ts, tz=timezone.utc),
+            signature=stub["signature"],
+            tx_type="VOTE",
+            description="Vote fee (synthetic – 5000 lamports fixed)",
+            counterparty="Network / Fees",
+            sol_in=0.0,
+            sol_out=fee_sol,
+            fee_sol=fee_sol,
+            is_vote=True,
+            is_intra=False,
+        ))
+    return entries
