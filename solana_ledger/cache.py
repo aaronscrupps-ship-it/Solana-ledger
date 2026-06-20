@@ -10,8 +10,12 @@ class Cache:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
-        self.conn.execute("PRAGMA journal_mode=WAL")
+        # WAL mode is not needed here (single writer, no concurrent readers).
+        # TRUNCATE journal is simpler and avoids a large -wal file accumulating
+        # during multi-million-row signature fetches.
+        self.conn.execute("PRAGMA journal_mode=TRUNCATE")
         self.conn.execute("PRAGMA synchronous=NORMAL")
+        self.conn.execute("PRAGMA cache_size=-32000")  # 32 MB page cache
         self._init_schema()
 
     def _init_schema(self):
