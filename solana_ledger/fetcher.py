@@ -94,16 +94,18 @@ def fetch_signatures(
         if not results:
             break
 
+        # Evaluate BEFORE yielding — caller mutates known_sigs during yield,
+        # which would make the check always True if done afterwards.
+        all_already_known = all(r["signature"] in known_sigs for r in results)
+        last_sig = results[-1]["signature"]
+        is_last_page = len(results) < 1000
+
         yield results
 
-        # If every sig in this page is already cached we've caught up
-        if all(r["signature"] in known_sigs for r in results):
+        if all_already_known or is_last_page:
             break
 
-        if len(results) < 1000:
-            break
-
-        before = results[-1]["signature"]
+        before = last_sig
 
 
 def fetch_transactions(
