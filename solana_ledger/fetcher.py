@@ -91,8 +91,17 @@ def fetch_signatures(
             ],
         }
 
-        resp = _post_with_retry(f"{HELIUS_RPC}?api-key={api_key}", json=payload)
-        data = resp.json()
+        # Retry on truncated/malformed JSON (occasional Helius network glitch)
+        data = None
+        for attempt in range(_MAX_RETRIES):
+            try:
+                resp = _post_with_retry(f"{HELIUS_RPC}?api-key={api_key}", json=payload)
+                data = resp.json()
+                break
+            except ValueError:  # JSONDecodeError is a subclass of ValueError
+                if attempt == _MAX_RETRIES - 1:
+                    raise
+                time.sleep(_BACKOFF_BASE ** (attempt + 1))
 
         if "error" in data:
             raise RuntimeError(f"RPC error for {address}: {data['error']}")
