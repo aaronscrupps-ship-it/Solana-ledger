@@ -1,0 +1,38 @@
+# Solana Validator Ledger - Configuration
+# Copy this file to config.yaml and fill in your values.
+# config.yaml is gitignored so your API key and addresses stay private.
+
+helius_api_key: "your-helius-api-key-here"
+
+wallets:
+  # Vote accounts (receive staking rewards, emit vote transactions)
+  - address: "VoteAccount1AddressHere111111111111111111111"
+    label: "Validator 1 - Vote"
+    type: "vote"
+
+  - address: "VoteAccount2AddressHere111111111111111111111"
+    label: "Validator 2 - Vote"
+    type: "vote"
+
+  # Identity accounts (sign vote transactions, pay vote fees)
+  # These have very high transaction counts (one per slot voted on)
+  - address: "IdentityAccount1AddressHere11111111111111111"
+    label: "Validator 1 - Identity"
+    type: "identity"
+
+  - address: "IdentityAccount2AddressHere11111111111111111"
+    label: "Validator 2 - Identity"
+    type: "identity"
+
+  # Admin / operational wallets
+  - address: "AdminWallet1AddressHere11111111111111111111"
+    label: "Admin Wallet 1"
+    type: "admin"
+
+  - address: "AdminWallet2AddressHere11111111111111111111"
+    label: "Admin Wallet 2"
+    type: "admin"
+
+# Optional: override default paths
+cache_db: "cache/transactions.db"
+output_dir: "output"

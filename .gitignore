@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Project secrets and data - never commit these
+config.yaml
+cache/
+output/
+
+# Keep example config
+!config.yaml.example
+
+# OS
+.DS_Store
+Thumbs.db
