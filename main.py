@@ -56,9 +56,19 @@ def cmd_fetch(args, config):
         if history_complete:
             print(f"  (history previously completed – incremental mode)")
 
+        # If we have a partial cache, jump straight to the oldest cached sig
+        # and fetch backwards from there.  Without this, the fetcher would
+        # silently re-scan millions of already-cached pages before finding
+        # the gap — taking hours to do nothing visible.
+        initial_before = None
+        if known and not history_complete:
+            initial_before = cache.get_oldest_signature(wallet.address)
+            if initial_before:
+                print(f"  Resuming from oldest cached signature")
+
         new_count = 0
         reached_end = False
-        gen = fetch_signatures(wallet.address, config.helius_api_key, known, sig_rl, history_complete)
+        gen = fetch_signatures(wallet.address, config.helius_api_key, known, sig_rl, history_complete, initial_before)
         with tqdm(desc="  Fetching signatures", unit=" sigs", leave=True) as pbar:
             try:
                 while True:

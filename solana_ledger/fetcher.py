@@ -57,6 +57,7 @@ def fetch_signatures(
     known_sigs: Set[str],
     rate_limiter: Optional[RateLimiter] = None,
     history_complete: bool = False,
+    initial_before: Optional[str] = None,
 ) -> Generator[List[Dict], None, bool]:
     """
     Yield pages of raw signature dicts from getSignaturesForAddress.
@@ -73,7 +74,7 @@ def fetch_signatures(
     if rate_limiter is None:
         rate_limiter = RateLimiter(5.0)
 
-    before: Optional[str] = None
+    before: Optional[str] = initial_before
 
     while True:
         rate_limiter.wait()

@@ -62,6 +62,21 @@ class Cache:
         )
         return {row[0] for row in cur}
 
+    def get_oldest_signature(self, address: str) -> Optional[str]:
+        """Return the oldest (lowest block_time) signature cached for this address.
+
+        Used as the 'before' cursor when resuming an interrupted fetch, so we
+        jump straight to the gap instead of re-scanning millions of cached pages.
+        """
+        cur = self.conn.execute(
+            """SELECT signature FROM signatures
+               WHERE address = ? AND err = 0
+               ORDER BY block_time ASC LIMIT 1""",
+            (address,),
+        )
+        row = cur.fetchone()
+        return row[0] if row else None
+
     def get_newest_signature(self, address: str) -> Optional[str]:
         """Returns the signature with the highest block_time for this address."""
         cur = self.conn.execute(
