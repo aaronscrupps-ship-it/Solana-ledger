@@ -56,12 +56,19 @@ def fetch_signatures(
     api_key: str,
     known_sigs: Set[str],
     rate_limiter: Optional[RateLimiter] = None,
-) -> Generator[List[Dict], None, None]:
+    history_complete: bool = False,
+) -> Generator[List[Dict], None, bool]:
     """
     Yield pages of raw signature dicts from getSignaturesForAddress.
 
-    Stops pagination early when an entire page is already in known_sigs,
-    which makes incremental runs very fast.
+    Returns True (via StopIteration.value) if we reached the end of chain
+    history, False if we stopped early because all sigs were already known.
+
+    The early-exit optimisation (stopping when a page is fully cached) is
+    only used when history_complete=True, meaning a previous run already
+    fetched all the way to the beginning of the account's history.  Without
+    this guard a partial cache from a broken first run would look identical
+    to a fully-caught-up cache and stop pagination prematurely.
     """
     if rate_limiter is None:
         rate_limiter = RateLimiter(5.0)
@@ -92,18 +99,22 @@ def fetch_signatures(
 
         results: List[Dict] = data.get("result") or []
         if not results:
-            break
+            return True  # empty page = genuine end of history
 
         # Evaluate BEFORE yielding — caller mutates known_sigs during yield,
-        # which would make the check always True if done afterwards.
+        # so checking afterwards would always look "all known".
         all_already_known = all(r["signature"] in known_sigs for r in results)
         last_sig = results[-1]["signature"]
         is_last_page = len(results) < 1000
 
         yield results
 
-        if all_already_known or is_last_page:
-            break
+        if is_last_page:
+            return True  # reached the oldest transaction on-chain
+
+        # Early-exit only safe after a confirmed complete history fetch.
+        if history_complete and all_already_known:
+            return False  # fully caught up
 
         before = last_sig
 

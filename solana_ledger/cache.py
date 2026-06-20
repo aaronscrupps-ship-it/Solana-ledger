@@ -33,6 +33,14 @@ class Cache:
                 fetched_at INTEGER NOT NULL
             );
 
+            -- Tracks whether a full history fetch has completed for each address.
+            -- Until this flag is set, incremental early-exit is disabled so a
+            -- partial cache from a broken first run doesn't fool the fetcher.
+            CREATE TABLE IF NOT EXISTS address_meta (
+                address        TEXT PRIMARY KEY,
+                fetch_complete INTEGER DEFAULT 0
+            );
+
             CREATE INDEX IF NOT EXISTS idx_sigs_address
                 ON signatures (address);
             CREATE INDEX IF NOT EXISTS idx_sigs_time
@@ -156,6 +164,30 @@ class Cache:
         row = dict(cur.fetchone())
         row["pending"] = row["total_sigs"] - row["cached_txns"]
         return row
+
+    # ── fetch_complete flag ────────────────────────────────────────────────
+
+    def is_fetch_complete(self, address: str) -> bool:
+        """True if a full history fetch has previously completed for this address."""
+        cur = self.conn.execute(
+            "SELECT fetch_complete FROM address_meta WHERE address = ?", (address,)
+        )
+        row = cur.fetchone()
+        return bool(row and row[0])
+
+    def mark_fetch_complete(self, address: str):
+        self.conn.execute(
+            """INSERT INTO address_meta (address, fetch_complete) VALUES (?, 1)
+               ON CONFLICT(address) DO UPDATE SET fetch_complete = 1""",
+            (address,),
+        )
+        self.conn.commit()
+
+    def clear_wallet(self, address: str):
+        """Delete all cached signatures and meta for an address so it refetches from scratch."""
+        self.conn.execute("DELETE FROM signatures WHERE address = ?", (address,))
+        self.conn.execute("DELETE FROM address_meta WHERE address = ?", (address,))
+        self.conn.commit()
 
     def close(self):
         self.conn.close()

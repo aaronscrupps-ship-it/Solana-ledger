@@ -51,22 +51,38 @@ def cmd_fetch(args, config):
 
         # ── Phase 1: signatures ───────────────────────────────────────────
         known = cache.get_known_signatures(wallet.address)
+        history_complete = cache.is_fetch_complete(wallet.address)
         print(f"  Cached signatures : {len(known):>10,}")
+        if history_complete:
+            print(f"  (history previously completed – incremental mode)")
 
         new_count = 0
+        reached_end = False
+        gen = fetch_signatures(wallet.address, config.helius_api_key, known, sig_rl, history_complete)
         with tqdm(desc="  Fetching signatures", unit=" sigs", leave=True) as pbar:
-            for page in fetch_signatures(wallet.address, config.helius_api_key, known, sig_rl):
-                novel = [s for s in page if s["signature"] not in known]
-                if novel:
-                    cache.save_signatures(wallet.address, page)
-                    for s in novel:
-                        known.add(s["signature"])
-                    new_count += len(novel)
-                    pbar.update(len(novel))
+            try:
+                while True:
+                    page = next(gen)
+                    novel = [s for s in page if s["signature"] not in known]
+                    if novel:
+                        cache.save_signatures(wallet.address, page)
+                        for s in novel:
+                            known.add(s["signature"])
+                        new_count += len(novel)
+                        pbar.update(len(novel))
+            except StopIteration as exc:
+                reached_end = bool(exc.value)
+
+        if reached_end:
+            cache.mark_fetch_complete(wallet.address)
 
         total_sigs = cache.count_signatures(wallet.address)
         print(f"  New signatures    : {new_count:>10,}")
         print(f"  Total signatures  : {total_sigs:>10,}")
+        if reached_end:
+            print(f"  Full history confirmed.")
+        elif not history_complete:
+            print(f"  WARNING: fetch stopped early — re-run to continue.")
 
         if args.sigs_only:
             print("  (--sigs-only: skipping transaction fetch)")
@@ -158,6 +174,27 @@ def cmd_status(args, config):
     cache.close()
 
 
+# ── reset ─────────────────────────────────────────────────────────────────────
+
+def cmd_reset(args, config):
+    cache = Cache(config.cache_db)
+    targets = config.wallets
+
+    if args.wallet:
+        targets = [w for w in targets if w.address == args.wallet]
+        if not targets:
+            print(f"ERROR: address '{args.wallet}' not found in config.yaml")
+            sys.exit(1)
+
+    for wallet in targets:
+        before = cache.count_signatures(wallet.address)
+        cache.clear_wallet(wallet.address)
+        print(f"  {wallet.label}: cleared {before:,} cached signatures")
+
+    cache.close()
+    print("Reset complete. Run 'fetch' to re-download.")
+
+
 # ── CLI wiring ────────────────────────────────────────────────────────────────
 
 def main():
@@ -182,6 +219,9 @@ def main():
 
     sub.add_parser("status", help="Show cache statistics for each wallet")
 
+    rsp = sub.add_parser("reset", help="Clear cached signatures for one or all wallets so they re-fetch from scratch")
+    rsp.add_argument("--wallet", metavar="ADDRESS", help="Reset only this wallet (default: all wallets)")
+
     args = parser.parse_args()
 
     try:
@@ -190,7 +230,7 @@ def main():
         print(f"ERROR: {exc}")
         sys.exit(1)
 
-    dispatch = {"fetch": cmd_fetch, "report": cmd_report, "status": cmd_status}
+    dispatch = {"fetch": cmd_fetch, "report": cmd_report, "status": cmd_status, "reset": cmd_reset}
     dispatch[args.command](args, config)
 
 
