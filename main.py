@@ -50,9 +50,9 @@ def cmd_fetch(args, config):
         print(f"{'='*60}")
 
         # ── Phase 1: signatures ───────────────────────────────────────────
-        known = cache.get_known_signatures(wallet.address)
         history_complete = cache.is_fetch_complete(wallet.address)
-        print(f"  Cached signatures : {len(known):>10,}")
+        sig_count = cache.count_signatures(wallet.address)
+        print(f"  Cached signatures : {sig_count:>10,}")
         if history_complete:
             print(f"  (history previously completed – incremental mode)")
 
@@ -60,11 +60,22 @@ def cmd_fetch(args, config):
         # and fetch backwards from there.  Without this, the fetcher would
         # silently re-scan millions of already-cached pages before finding
         # the gap — taking hours to do nothing visible.
+        #
+        # Crucially: when resuming, everything older than initial_before is
+        # guaranteed new, so we do NOT load the full known-sigs set into RAM.
+        # For 28M cached sigs that set would be ~7 GB — more than the Linux
+        # container has — causing heavy swap and terminal lag.
         initial_before = None
-        if known and not history_complete:
+        if sig_count > 0 and not history_complete:
             initial_before = cache.get_oldest_signature(wallet.address)
-            if initial_before:
-                print(f"  Resuming from oldest cached signature")
+
+        if initial_before:
+            # Resuming: sigs older than initial_before are all new — empty set is correct.
+            known: set = set()
+            print(f"  Resuming from oldest cached signature (skipping RAM load of {sig_count:,} known sigs)")
+        else:
+            # Incremental or first run: need known set for early-exit / novel detection.
+            known = cache.get_known_signatures(wallet.address)
 
         new_count = 0
         reached_end = False
