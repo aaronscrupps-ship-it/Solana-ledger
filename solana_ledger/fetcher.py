@@ -20,6 +20,10 @@ HELIUS_TXN_URL = "https://api.helius.xyz/v0/transactions"
 _MAX_RETRIES = 5
 _BACKOFF_BASE = 2.0  # seconds
 
+# Persistent session reuses TCP+TLS connections across requests.
+# Without this each call pays ~150-300ms of handshake overhead.
+_session = requests.Session()
+
 
 class RateLimiter:
     def __init__(self, calls_per_second: float = 5.0):
@@ -37,7 +41,7 @@ class RateLimiter:
 def _post_with_retry(url: str, **kwargs) -> requests.Response:
     for attempt in range(_MAX_RETRIES):
         try:
-            resp = requests.post(url, timeout=60, **kwargs)
+            resp = _session.post(url, timeout=60, **kwargs)
             if resp.status_code == 429:
                 wait = _BACKOFF_BASE ** (attempt + 1)
                 time.sleep(wait)
