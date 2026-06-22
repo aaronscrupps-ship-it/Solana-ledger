@@ -24,6 +24,19 @@ _BACKOFF_BASE = 2.0  # seconds
 # Without this each call pays ~150-300ms of handshake overhead.
 _session = requests.Session()
 
+# Global 429 / backoff stats — reset by reset_stats(), read by get_stats().
+_stats: Dict = {"hits_429": 0, "backoff_seconds": 0.0, "requests": 0}
+
+
+def reset_stats():
+    _stats["hits_429"] = 0
+    _stats["backoff_seconds"] = 0.0
+    _stats["requests"] = 0
+
+
+def get_stats() -> Dict:
+    return dict(_stats)
+
 
 class RateLimiter:
     def __init__(self, calls_per_second: float = 5.0):
@@ -39,11 +52,14 @@ class RateLimiter:
 
 
 def _post_with_retry(url: str, **kwargs) -> requests.Response:
+    _stats["requests"] += 1
     for attempt in range(_MAX_RETRIES):
         try:
             resp = _session.post(url, timeout=60, **kwargs)
             if resp.status_code == 429:
                 wait = _BACKOFF_BASE ** (attempt + 1)
+                _stats["hits_429"] += 1
+                _stats["backoff_seconds"] += wait
                 time.sleep(wait)
                 continue
             resp.raise_for_status()

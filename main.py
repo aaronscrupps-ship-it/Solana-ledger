@@ -15,6 +15,7 @@ Run `python main.py --help` for full options.
 
 import argparse
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List
@@ -23,7 +24,7 @@ from tqdm import tqdm
 
 from solana_ledger.cache import Cache
 from solana_ledger.config import load_config
-from solana_ledger.fetcher import RateLimiter, fetch_signatures, fetch_transactions
+from solana_ledger.fetcher import RateLimiter, fetch_signatures, fetch_transactions, reset_stats, get_stats
 from solana_ledger.processor import LedgerEntry, process_all, synthetic_vote_entries
 from solana_ledger.reporter import generate_report
 
@@ -80,6 +81,8 @@ def cmd_fetch(args, config):
 
         new_count = 0
         reached_end = False
+        reset_stats()
+        fetch_start = time.monotonic()
         gen = fetch_signatures(wallet.address, config.helius_api_key, known, sig_rl, history_complete, initial_before)
         with tqdm(desc="  Fetching signatures", unit=" sigs", leave=True) as pbar:
             try:
@@ -94,6 +97,17 @@ def cmd_fetch(args, config):
                         pbar.update(len(novel))
             except StopIteration as exc:
                 reached_end = bool(exc.value)
+
+        fetch_elapsed = time.monotonic() - fetch_start
+        st = get_stats()
+        if st["requests"] > 0:
+            avg_ms = (fetch_elapsed - st["backoff_seconds"]) / st["requests"] * 1000
+            print(
+                f"  Fetch stats: {st['requests']} requests, "
+                f"{st['hits_429']} throttled (429), "
+                f"{st['backoff_seconds']:.1f}s backoff, "
+                f"avg {avg_ms:.0f}ms/req net"
+            )
 
         if reached_end:
             cache.mark_fetch_complete(wallet.address)
