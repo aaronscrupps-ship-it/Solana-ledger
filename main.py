@@ -40,8 +40,9 @@ def cmd_fetch(args, config):
             print(f"ERROR: address '{args.wallet}' not found in config.yaml")
             sys.exit(1)
 
-    sig_rl = RateLimiter(5.0)
-    tx_rl = RateLimiter(3.0)
+    sig_rl = RateLimiter(config.sig_rate_limit)
+    tx_rl = RateLimiter(config.tx_rate_limit)
+    print(f"Rate limits: {config.sig_rate_limit} sig-pages/s, {config.tx_rate_limit} tx-batches/s")
 
     for wallet in targets:
         print(f"\n{'='*60}")

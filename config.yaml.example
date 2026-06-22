@@ -36,3 +36,9 @@ wallets:
 # Optional: override default paths
 cache_db: "cache/transactions.db"
 output_dir: "output"
+
+# Rate limits (requests per second).
+# Free Helius tier: leave at defaults (5 / 3).
+# Helius Developer plan ($49/mo): increase to 25-40 / 15-20 for much faster fetching.
+sig_rate_limit: 5.0
+tx_rate_limit: 3.0

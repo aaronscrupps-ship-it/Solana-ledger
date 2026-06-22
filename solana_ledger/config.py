@@ -17,6 +17,12 @@ class Config:
     wallets: List[WalletConfig]
     cache_db: str = "cache/transactions.db"
     output_dir: str = "output"
+    # RPC calls per second for signature fetching.
+    # Free tier: ~5 sustained.  Developer ($49/mo): safe to use 25-40.
+    sig_rate_limit: float = 5.0
+    # Enhanced transaction API calls per second.
+    # Free tier: ~3.  Developer: safe to use 15-20.
+    tx_rate_limit: float = 3.0
 
     @property
     def our_addresses(self) -> set:
@@ -60,4 +66,6 @@ def load_config(path: str = "config.yaml") -> Config:
         wallets=wallets,
         cache_db=data.get("cache_db", "cache/transactions.db"),
         output_dir=data.get("output_dir", "output"),
+        sig_rate_limit=float(data.get("sig_rate_limit", 5.0)),
+        tx_rate_limit=float(data.get("tx_rate_limit", 3.0)),
     )
