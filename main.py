@@ -97,7 +97,7 @@ def cmd_fetch(args, config):
                             known.add(s["signature"])
                         new_count += len(novel)
                         pbar.update(len(novel))
-                    if pages_fetched % 100 == 0:
+                    if pages_fetched % 10 == 0:
                         st = get_stats()
                         elapsed = time.monotonic() - fetch_start
                         rate = new_count / elapsed if elapsed > 0 else 0
