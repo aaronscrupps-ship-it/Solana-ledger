@@ -15,7 +15,7 @@ class Cache:
         # during multi-million-row signature fetches.
         self.conn.execute("PRAGMA journal_mode=TRUNCATE")
         self.conn.execute("PRAGMA synchronous=NORMAL")
-        self.conn.execute("PRAGMA cache_size=-32000")  # 32 MB page cache
+        self.conn.execute("PRAGMA cache_size=-262144")  # 256 MB page cache
         self._init_schema()
 
     def _init_schema(self):
@@ -88,7 +88,7 @@ class Cache:
         row = cur.fetchone()
         return row[0] if row else None
 
-    def save_signatures(self, address: str, sigs: List[Dict]):
+    def save_signatures(self, address: str, sigs: List[Dict], commit: bool = True):
         self.conn.executemany(
             """INSERT OR IGNORE INTO signatures
                    (address, signature, slot, block_time, err)
@@ -104,6 +104,10 @@ class Cache:
                 for s in sigs
             ],
         )
+        if commit:
+            self.conn.commit()
+
+    def commit(self):
         self.conn.commit()
 
     def count_signatures(self, address: str) -> int:

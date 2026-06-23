@@ -98,13 +98,16 @@ def cmd_fetch(args, config):
                     novel = [s for s in page if s["signature"] not in known]
                     if novel:
                         t_db0 = time.monotonic()
-                        cache.save_signatures(wallet.address, page)
+                        cache.save_signatures(wallet.address, page, commit=False)
                         total_db_time += time.monotonic() - t_db0
                         for s in novel:
                             known.add(s["signature"])
                         new_count += len(novel)
                         pbar.update(len(novel))
                     if pages_fetched % 10 == 0:
+                        t_db0 = time.monotonic()
+                        cache.commit()
+                        total_db_time += time.monotonic() - t_db0
                         st = get_stats()
                         elapsed = time.monotonic() - fetch_start
                         rate = new_count / elapsed if elapsed > 0 else 0
@@ -119,6 +122,7 @@ def cmd_fetch(args, config):
                         )
             except StopIteration as exc:
                 reached_end = bool(exc.value)
+        cache.commit()  # flush any remaining uncommitted pages
 
         fetch_elapsed = time.monotonic() - fetch_start
         st = get_stats()
