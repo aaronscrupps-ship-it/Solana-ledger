@@ -81,6 +81,7 @@ def cmd_fetch(args, config):
 
         new_count = 0
         reached_end = False
+        pages_fetched = 0
         reset_stats()
         fetch_start = time.monotonic()
         gen = fetch_signatures(wallet.address, config.helius_api_key, known, sig_rl, history_complete, initial_before)
@@ -88,6 +89,7 @@ def cmd_fetch(args, config):
             try:
                 while True:
                     page = next(gen)
+                    pages_fetched += 1
                     novel = [s for s in page if s["signature"] not in known]
                     if novel:
                         cache.save_signatures(wallet.address, page)
@@ -95,6 +97,16 @@ def cmd_fetch(args, config):
                             known.add(s["signature"])
                         new_count += len(novel)
                         pbar.update(len(novel))
+                    if pages_fetched % 100 == 0:
+                        st = get_stats()
+                        elapsed = time.monotonic() - fetch_start
+                        rate = new_count / elapsed if elapsed > 0 else 0
+                        pbar.write(
+                            f"  [page {pages_fetched:,}] "
+                            f"429s: {st['hits_429']} ({st['backoff_seconds']:.0f}s backoff) | "
+                            f"requests: {st['requests']} | "
+                            f"net rate: {rate:.0f} sigs/s"
+                        )
             except StopIteration as exc:
                 reached_end = bool(exc.value)
 
