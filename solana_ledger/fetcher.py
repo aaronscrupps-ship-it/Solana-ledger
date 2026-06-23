@@ -32,6 +32,8 @@ def reset_stats():
     _stats["hits_429"] = 0
     _stats["backoff_seconds"] = 0.0
     _stats["requests"] = 0
+    _stats["total_api_seconds"] = 0.0
+    _stats["slow_requests"] = 0
 
 
 def get_stats() -> Dict:
@@ -55,7 +57,11 @@ def _post_with_retry(url: str, **kwargs) -> requests.Response:
     _stats["requests"] += 1
     for attempt in range(_MAX_RETRIES):
         try:
+            t0 = time.monotonic()
             resp = _session.post(url, timeout=60, **kwargs)
+            elapsed = time.monotonic() - t0
+            _stats["total_api_seconds"] = _stats.get("total_api_seconds", 0.0) + elapsed
+            _stats["slow_requests"] = _stats.get("slow_requests", 0) + (1 if elapsed > 2.0 else 0)
             if resp.status_code == 429:
                 wait = _BACKOFF_BASE ** (attempt + 1)
                 _stats["hits_429"] += 1

@@ -101,10 +101,14 @@ def cmd_fetch(args, config):
                         st = get_stats()
                         elapsed = time.monotonic() - fetch_start
                         rate = new_count / elapsed if elapsed > 0 else 0
+                        reqs = st["requests"] or 1
+                        avg_api = st.get("total_api_seconds", 0.0) / reqs * 1000
+                        slow = st.get("slow_requests", 0)
                         pbar.write(
                             f"  [page {pages_fetched:,}] "
-                            f"429s: {st['hits_429']} ({st['backoff_seconds']:.0f}s backoff) | "
-                            f"requests: {st['requests']} | "
+                            f"429s: {st['hits_429']} | "
+                            f"avg API: {avg_api:.0f}ms | "
+                            f"slow(>2s): {slow}/{reqs} | "
                             f"net rate: {rate:.0f} sigs/s"
                         )
             except StopIteration as exc:
