@@ -84,15 +84,22 @@ def cmd_fetch(args, config):
         pages_fetched = 0
         reset_stats()
         fetch_start = time.monotonic()
+        total_db_time = 0.0
+        total_api_wait = 0.0
         gen = fetch_signatures(wallet.address, config.helius_api_key, known, sig_rl, history_complete, initial_before)
         with tqdm(desc="  Fetching signatures", unit=" sigs", leave=True) as pbar:
             try:
                 while True:
+                    t_api0 = time.monotonic()
                     page = next(gen)
+                    total_api_wait += time.monotonic() - t_api0
+
                     pages_fetched += 1
                     novel = [s for s in page if s["signature"] not in known]
                     if novel:
+                        t_db0 = time.monotonic()
                         cache.save_signatures(wallet.address, page)
+                        total_db_time += time.monotonic() - t_db0
                         for s in novel:
                             known.add(s["signature"])
                         new_count += len(novel)
@@ -102,13 +109,12 @@ def cmd_fetch(args, config):
                         elapsed = time.monotonic() - fetch_start
                         rate = new_count / elapsed if elapsed > 0 else 0
                         reqs = st["requests"] or 1
-                        avg_api = st.get("total_api_seconds", 0.0) / reqs * 1000
-                        slow = st.get("slow_requests", 0)
+                        avg_api_ms = total_api_wait / pages_fetched * 1000
+                        avg_db_ms = total_db_time / pages_fetched * 1000
                         pbar.write(
                             f"  [page {pages_fetched:,}] "
                             f"429s: {st['hits_429']} | "
-                            f"avg API: {avg_api:.0f}ms | "
-                            f"slow(>2s): {slow}/{reqs} | "
+                            f"avg/page — API: {avg_api_ms:.0f}ms  DB: {avg_db_ms:.0f}ms | "
                             f"net rate: {rate:.0f} sigs/s"
                         )
             except StopIteration as exc:
