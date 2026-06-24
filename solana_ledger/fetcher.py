@@ -118,12 +118,19 @@ def fetch_signatures(
             ],
         }
 
-        # Retry on truncated/malformed JSON (occasional Helius network glitch)
+        # Retry on truncated/malformed JSON or transient RPC errors ("Service overloaded", etc.)
+        _TRANSIENT_RPC_CODES = {-32603}
         data = None
         for attempt in range(_MAX_RETRIES):
             try:
                 resp = _post_with_retry(f"{HELIUS_RPC}?api-key={api_key}", json=payload)
                 data = resp.json()
+                err = data.get("error")
+                if err and err.get("code") in _TRANSIENT_RPC_CODES:
+                    wait = _BACKOFF_BASE ** (attempt + 1)
+                    print(f"\n  [RPC {err['code']}] {err.get('message')} – retrying in {wait:.0f}s…")
+                    time.sleep(wait)
+                    continue
                 break
             except ValueError:  # JSONDecodeError is a subclass of ValueError
                 if attempt == _MAX_RETRIES - 1:
