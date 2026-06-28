@@ -226,9 +226,16 @@ class Cache:
 
     def clear_wallet(self, address: str):
         """Delete all cached signatures and meta for an address so it refetches from scratch."""
-        self.conn.execute("DELETE FROM signatures WHERE address = ?", (address,))
-        self.conn.execute("DELETE FROM address_meta WHERE address = ?", (address,))
-        self.conn.commit()
+        # MEMORY journal avoids writing the rollback journal to disk, which would
+        # fail with "database or disk is full" when deleting tens of millions of rows
+        # on a nearly-full disk.  We restore TRUNCATE afterwards for normal operation.
+        self.conn.execute("PRAGMA journal_mode=MEMORY")
+        try:
+            self.conn.execute("DELETE FROM signatures WHERE address = ?", (address,))
+            self.conn.execute("DELETE FROM address_meta WHERE address = ?", (address,))
+            self.conn.commit()
+        finally:
+            self.conn.execute("PRAGMA journal_mode=TRUNCATE")
 
     def close(self):
         self.conn.close()
