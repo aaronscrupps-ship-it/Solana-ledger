@@ -177,12 +177,22 @@ def cmd_fetch(args, config):
             )
 
         fetched = 0
+        skipped_vote = 0
         with tqdm(total=len(uncached), desc="  Fetching transactions", unit=" txns") as pbar:
             for batch in fetch_transactions(uncached, config.helius_api_key, tx_rl):
+                downloaded = len(batch)
+                if wallet.type == "vote":
+                    # Vote accounts contain millions of on-chain vote transactions
+                    # (type "VOTE") which have no SOL movement and no accounting
+                    # value. Filter them out and only persist real transactions
+                    # (withdrawals, commission events, transfers, etc.).
+                    batch = [tx for tx in batch if tx.get("type") != "VOTE"]
+                    skipped_vote += downloaded - len(batch)
                 cache.save_transactions(batch)
                 fetched += len(batch)
-                pbar.update(len(batch))
-
+                pbar.update(downloaded)
+        if skipped_vote:
+            print(f"  Vote txns skipped  : {skipped_vote:>9,}  (type=VOTE, no SOL movement)")
         print(f"  Transactions cached: {fetched:>9,}")
 
     cache.close()
