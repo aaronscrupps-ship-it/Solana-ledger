@@ -33,7 +33,7 @@ from solana_ledger.reporter import generate_report
 
 def cmd_fetch(args, config):
     cache = Cache(config.cache_db)
-    targets = config.wallets
+    targets = [w for w in config.wallets if not w.skip]
 
     if args.wallet:
         targets = [w for w in targets if w.address == args.wallet]
@@ -274,7 +274,7 @@ def cmd_status(args, config):
 
 def cmd_reset(args, config):
     cache = Cache(config.cache_db)
-    targets = config.wallets
+    targets = [w for w in config.wallets if not w.skip]
 
     if args.wallet:
         targets = [w for w in targets if w.address == args.wallet]

@@ -9,6 +9,7 @@ class WalletConfig:
     address: str
     label: str
     type: str  # "vote", "identity", "admin"
+    skip: bool = False
 
 
 @dataclass
@@ -56,6 +57,7 @@ def load_config(path: str = "config.yaml") -> Config:
             address=w["address"],
             label=w["label"],
             type=w.get("type", "admin"),
+            skip=bool(w.get("skip", False)),
         ))
 
     if not wallets:
